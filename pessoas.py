@@ -5,8 +5,8 @@ import requests
 from pytube import YouTube
 from collections import deque
 
-# Carregar o modelo YOLOv8 (experimente modelos maiores para maior precisão)
-model = YOLO("yolov8l.pt")  # Opções: yolov8s.pt, yolov8m.pt, yolov8l.pt, yolov8x.pt
+# Carregar o modelo YOLOv8
+model = YOLO("yolov8l.pt")  # ou o caminho para o seu modelo .pt
 
 # Definir a classe de pessoas
 classes = ['person'] 
@@ -14,13 +14,20 @@ classes = ['person']
 colors = [(0, 255, 0)]  
 
 # URL do vídeo do YouTube
-youtube_url = 'https://www.youtube.com/watch?v=CWCVCTSb_ss' 
+youtube_url = 'https://www.youtube.com/watch?v=qlPKwGtuPq0' 
+
+# Parâmetros do limiar adaptativo
+limiar = 0.5  # Inicializar o limiar aqui
+limiar_base = 0.5
+ajuste_limiar = 0.2
+tamanho_historico = 50 
+historico_deteccoes = deque(maxlen=tamanho_historico)
 
 try:
     # Crie um objeto YouTube
     yt = YouTube(youtube_url)
 
-    # Selecione a maior resolução disponível (vídeo apenas - sem áudio)
+    # Selecione a maior resolução disponível (vídeo apenas)
     video_stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
 
     # Obtenha a URL direta do vídeo
@@ -39,12 +46,6 @@ try:
     largura_original = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     altura_original = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     print(f"Dimensões Originais: {largura_original}x{altura_original}")
-
-    # Parâmetros do limiar adaptativo
-    limiar_base = 0.5
-    ajuste_limiar = 0.2
-    tamanho_historico = 50  # Número de frames para calcular a média de detecções
-    historico_deteccoes = deque(maxlen=tamanho_historico)
 
     # Loop principal para processar os frames do vídeo
     while True:
@@ -78,19 +79,19 @@ try:
         # Calcular a média de detecções no histórico
         media_deteccoes = np.mean(historico_deteccoes)
 
-        # Ajustar o limiar com base na média de detecções
-        if media_deteccoes > 10000:  # Se muitas pessoas, aumentar o limiar
+        # Ajustar o limiar com base na média de detecções (corrigido)
+        if media_deteccoes > 10:  # Ajuste este valor se necessário
             limiar = limiar_base + ajuste_limiar
         else:
             limiar = limiar_base - ajuste_limiar
 
-        # Imprimir o número de pessoas detectadas no console
+        # Imprimir informações no console
         print(f"Pessoas detectadas: {people_count}, Limiar: {limiar:.2f}")
 
-        # Criar uma cópia do frame para desenhar as caixas (não é necessário redimensionar)
+        # Criar uma cópia do frame para desenhar as caixas 
         frame_desenho = frame.copy()
 
-        # Desenhar caixas delimitadoras e rótulos (sem ajuste de escala)
+        # Desenhar caixas delimitadoras e rótulos
         for detection in detections:
             x1, y1, x2, y2, cls, conf = detection
 
@@ -103,11 +104,11 @@ try:
                 cv2.putText(frame_desenho, f'{classes[cls]} - {conf:.2f}', (x1, y1 - 5),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
-        # Mostrar o número de pessoas detectadas na janela (sem ajuste de escala)
+        # Mostrar o número de pessoas detectadas na janela
         cv2.putText(frame_desenho, f'Pessoas: {people_count}', (10, 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
-        # Mostrar o frame original (sem redimensionamento)
+        # Mostrar o frame com as detecções
         cv2.imshow('Detecção de Pessoas', frame_desenho)
 
         # Aguardar tecla 'q' para sair
